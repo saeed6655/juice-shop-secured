@@ -62,19 +62,25 @@ jobs:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
     - name: Snyk Code (static analysis)
-      run: snyk code test --sarif > snyk-code.sarif || true
+      run: DEBUG=* snyk code test --sarif > snyk-code.sarif || true
+      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
 
     - name: Upload Snyk Code SARIF
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: snyk-code.sarif
-    - name: Snyk Open Source - Root
-      run: snyk test --all-projects --detection-depth=2 || true
 
+    # 1. التعديل الأول: إضافة 'DEBUG=*' وتشغيل Snyk Open Source في وضع التصحيح
+    - name: Snyk Open Source - Root
+      run: DEBUG=* snyk test --all-projects --detection-depth=2 || true
+      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
+
+    # 2. التعديل الثاني: إضافة 'DEBUG=*' وتشغيل Snyk Monitor في وضع التصحيح
     - name: Snyk Monitor - Root & Frontend
       run: |
-        snyk monitor --all-projects --detection-depth=2 || true
-        cd frontend && snyk monitor || true  
+        DEBUG=* snyk monitor --all-projects --detection-depth=2 || true
+        cd frontend && DEBUG=* snyk monitor || true
+      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
 
 
     # ---------- فحص الحاويات ----------
@@ -83,7 +89,9 @@ jobs:
 
     - name: Snyk Container Monitor
       run: snyk container monitor juice-shop-secured --file=Dockerfile || true
+      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
 
     # ---------- فحص IaC (لو كان هناك terraform/k8s/yaml) ----------
     - name: Snyk IaC test (optional)
       run: snyk iac test || true
+      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
