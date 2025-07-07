@@ -25,13 +25,17 @@ jobs:
         node-version: '20'
 
     # --- Root Dependencies ---
-    - name: Install root dependencies
-      run: npm install --legacy-peer-deps
+    - name: Clean install root dependencies
+      run: |
+        rm -rf node_modules package-lock.json
+        npm install --legacy-peer-deps
 
     # --- Frontend Dependencies ---
-    - name: Install frontend dependencies
+    - name: Clean install frontend dependencies
       working-directory: ./frontend
-      run: npm install --legacy-peer-deps
+      run: |
+        rm -rf node_modules package-lock.json
+        npm install --legacy-peer-deps
 
     # ---------- أدوات فحص الأمان ----------
     - name: Run npm audit (root)
@@ -63,25 +67,23 @@ jobs:
 
     - name: Snyk Code (static analysis)
       run: DEBUG=* snyk code test --sarif > snyk-code.sarif || true
-      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
+      continue-on-error: true
 
     - name: Upload Snyk Code SARIF
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: snyk-code.sarif
 
-    # 1. التعديل الأول: إضافة 'DEBUG=*' وتشغيل Snyk Open Source في وضع التصحيح
+    # --- Snyk Open Source (تحليل التبعيات) ---
     - name: Snyk Open Source - Root
-      run: DEBUG=* snyk test --all-projects --detection-depth=2 || true
-      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
+      run: DEBUG=* snyk test --all-projects --detection-depth=3 --print-deps || true
+      continue-on-error: true
 
-    # 2. التعديل الثاني: إضافة 'DEBUG=*' وتشغيل Snyk Monitor في وضع التصحيح
     - name: Snyk Monitor - Root & Frontend
       run: |
-        DEBUG=* snyk monitor --all-projects --detection-depth=2 || true
-        cd frontend && DEBUG=* snyk monitor || true
-      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
-
+        DEBUG=* snyk monitor --all-projects --detection-depth=3 --print-deps || true
+        cd frontend && DEBUG=* snyk monitor --print-deps || true
+      continue-on-error: true
 
     # ---------- فحص الحاويات ----------
     - name: Build Docker image
@@ -89,9 +91,9 @@ jobs:
 
     - name: Snyk Container Monitor
       run: snyk container monitor juice-shop-secured --file=Dockerfile || true
-      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
+      continue-on-error: true
 
     # ---------- فحص IaC (لو كان هناك terraform/k8s/yaml) ----------
     - name: Snyk IaC test (optional)
       run: snyk iac test || true
-      continue-on-error: true # إضافة: للسماح للخطوات التالية بالاستمرار حتى لو فشلت هذه الخطوة
+      continue-on-error: true
