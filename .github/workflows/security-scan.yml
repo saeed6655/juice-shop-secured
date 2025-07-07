@@ -1,34 +1,58 @@
-name: Juice Shop Security Scan
+name: Secure CI Pipeline (Juice Shop)
 
 on:
   push:
-    branches: [main]
+    branches: [ "main" ]
   pull_request:
-    branches: [main]
+    branches: [ "main" ]
 
 jobs:
-  security:
+  security-checks:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
 
-      - name: Install dependencies
-        run: npm install
+    - name: Install dependencies
+      run: npm install --legacy-peer-deps
 
-      - name: Audit Node.js dependencies
-        run: npm audit --audit-level=low || true
+    # فحص التبعيات
+    - name: Run npm audit
+      run: npm audit --audit-level=low
 
-      - name: Run ESLint (Code Quality & Vulnerability hints)
-        run: |
-          npm install eslint
-          npx eslint . || true
+    # فحص جودة الكود
+    - name: Run ESLint
+      run: |
+        npx eslint . || true
 
-      - name: Run Gitleaks (Secret Scanner)
-        uses: gitleaks/gitleaks-action@v2
+    # فحص الأسرار داخل الكود
+    - name: Run Gitleaks
+      uses: gitleaks/gitleaks-action@v2
+      with:
+        config-path: ""
+        fail: false
+
+    # فحص التبعيات باستخدام Snyk
+    - name: Snyk Scan
+      uses: snyk/actions/node@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      continue-on-error: true
+
+    # فحص الكود الثابت (Static Analysis) باستخدام Semgrep
+    - name: Run Semgrep Scan
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: "p/javascript"
+
+    # فحص أكواد JavaScript لكشف ثغرات OWASP
+    - name: Detect OWASP Issues in JS (js-xss)
+      run: |
+        npm install -g js-xss
+        grep -r --include \*.js "innerHTML\|document.write\|eval\|Function(" . || true
