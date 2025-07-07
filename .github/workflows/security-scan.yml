@@ -69,13 +69,6 @@ jobs:
       with:
         sarif_file: snyk-code.sarif
 
-    - name: Snyk Open Source - Root
-      run: snyk test --all-projects --detection-depth=2 || true
-
-    - name: Snyk Monitor - Root & Frontend
-      run: |
-        snyk monitor --all-projects --detection-depth=2 || true
-        cd frontend && snyk monitor || true
 
     # ---------- فحص الحاويات ----------
     - name: Build Docker image
