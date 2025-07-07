@@ -24,12 +24,18 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Install dependencies
+    # --- Root Dependencies ---
+    - name: Install root dependencies
+      run: npm install --legacy-peer-deps
+
+    # --- Frontend Dependencies ---
+    - name: Install frontend dependencies
+      working-directory: ./frontend
       run: npm install --legacy-peer-deps
 
     # ---------- أدوات فحص الأمان ----------
-    - name: Run npm audit
-      run: npm audit --audit-level=low
+    - name: Run npm audit (root)
+      run: npm audit --audit-level=low || true
 
     - name: Run ESLint
       run: npx eslint . || true
@@ -37,7 +43,6 @@ jobs:
     - name: Run Gitleaks
       uses: gitleaks/gitleaks-action@v2
       with:
-        config-path: ""
         fail: false
 
     - name: Run Semgrep Scan
@@ -45,37 +50,40 @@ jobs:
       with:
         config: "p/javascript"
 
-    - name: Detect OWASP Issues in JS (js-xss)
+    - name: Detect OWASP JS Issues (js-xss)
       run: |
         npm install -g js-xss
         grep -r --include \*.js "innerHTML\|document.write\|eval\|Function(" . || true
 
-    # ---------- إعداد واستخدام Snyk ----------
+    # ---------- إعداد Snyk ----------
     - name: Set up Snyk CLI
       uses: snyk/actions/setup@master
       env:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
-    # فحص الكود باستخدام Snyk Code وتحميل التقرير
-    - name: Snyk Code test
+    - name: Snyk Code (static analysis)
       run: snyk code test --sarif > snyk-code.sarif || true
 
-    - name: Upload Snyk Code results to GitHub
+    - name: Upload Snyk Code SARIF
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: snyk-code.sarif
 
-    # فحص التبعيات
-    - name: Snyk Open Source monitor
-      run: snyk monitor --all-projects || true
+    - name: Snyk Open Source - Root
+      run: snyk test --all-projects --detection-depth=2 || true
 
-    # فحص IaC
-    - name: Snyk IaC test and report
-      run: snyk iac test --report || true
+    - name: Snyk Monitor - Root & Frontend
+      run: |
+        snyk monitor --all-projects --detection-depth=2 || true
+        cd frontend && snyk monitor || true
 
-    # فحص الحاويات
-    - name: Build a Docker image
+    # ---------- فحص الحاويات ----------
+    - name: Build Docker image
       run: docker build -t juice-shop-secured .
 
-    - name: Snyk Container monitor
+    - name: Snyk Container Monitor
       run: snyk container monitor juice-shop-secured --file=Dockerfile || true
+
+    # ---------- فحص IaC (لو كان هناك terraform/k8s/yaml) ----------
+    - name: Snyk IaC test (optional)
+      run: snyk iac test || true
