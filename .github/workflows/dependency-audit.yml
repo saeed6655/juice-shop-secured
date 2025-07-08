@@ -1,0 +1,42 @@
+name: Dependency Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # أو أي إصدار يناسب مشروعك
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: 🔍 Run npm audit (Security)
+        run: |
+          echo "Running npm audit..."
+          npm audit --audit-level=moderate || true
+
+      - name: 🕓 Check outdated dependencies
+        run: |
+          echo "Checking for outdated dependencies..."
+          npm outdated || true
+
+      - name: 🛡️ Run Snyk (optional)
+        if: env.SNYK_TOKEN != ''
+        uses: snyk/actions/node@master
+        with:
+          command: test --all-projects
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
