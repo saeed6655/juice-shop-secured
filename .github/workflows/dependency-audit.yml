@@ -1,4 +1,4 @@
-name: Dependency Audit
+name: Dependency Audit & Snyk Scan
 
 on:
   push:
@@ -12,31 +12,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 🛎️ Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup Node.js
+      - name: 🧰 Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18' # أو أي إصدار يناسب مشروعك
+          node-version: '18'  # أو عدّله بما يناسب المشروع
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: npm ci
 
-      - name: 🔍 Run npm audit (Security)
+      - name: 🔐 Run npm audit (Security check)
         run: |
           echo "Running npm audit..."
           npm audit --audit-level=moderate || true
 
-      - name: 🕓 Check outdated dependencies
+      - name: 🧓 Check outdated dependencies
         run: |
-          echo "Checking for outdated dependencies..."
+          echo "Checking for outdated packages..."
           npm outdated || true
 
-      - name: 🛡️ Run Snyk (optional)
-        if: env.SNYK_TOKEN != ''
-        uses: snyk/actions/node@master
-        with:
-          command: test --all-projects
+      - name: 🛡️ Run Snyk Code Scan (SARIF output)
+        run: snyk code test --sarif > snyk-code.sarif || true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: 🗂️ Upload SARIF to GitHub Security Dashboard
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk-code.sarif
+
+      - name: 🗃️ Upload raw SARIF as artifact (optional)
+        uses: actions/upload-artifact@v3
+        with:
+          name: snyk-code-results
+          path: snyk-code.sarif
