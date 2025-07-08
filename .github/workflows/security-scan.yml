@@ -16,84 +16,98 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: 🛎️ Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Node.js
+    - name: 🧰 Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
-    # --- Root Dependencies ---
-    - name: Clean install root dependencies
+    # ---------- تثبيت التبعيات ----------
+    - name: 📦 Clean install root dependencies
       run: |
         rm -rf node_modules package-lock.json
         npm install --legacy-peer-deps
 
-    # --- Frontend Dependencies ---
-    - name: Clean install frontend dependencies
+    - name: 📦 Clean install frontend dependencies
       working-directory: ./frontend
       run: |
         rm -rf node_modules package-lock.json
         npm install --legacy-peer-deps
 
-    # ---------- أدوات فحص الأمان ----------
-    - name: Run npm audit (root)
-      run: npm audit --audit-level=low || true
+    # ---------- فحصات NPM ----------
+    - name: 🔐 Run npm audit (root)
+      run: npm audit --audit-level=low
+      continue-on-error: true
 
-    - name: Run ESLint
+    - name: 🧓 Check outdated dependencies (root)
+      run: npm outdated || true
+
+    # ---------- فحصات Linters ----------
+    - name: 🧹 Run ESLint
       run: npx eslint . || true
 
-    - name: Run Gitleaks
+    # ---------- فحص الأسرار ----------
+    - name: 🔑 Run Gitleaks
       uses: gitleaks/gitleaks-action@v2
       with:
         fail: false
 
-    - name: Run Semgrep Scan
+    # ---------- فحص Semgrep ----------
+    - name: 🔍 Run Semgrep Scan
       uses: returntocorp/semgrep-action@v1
       with:
         config: "p/javascript"
 
-    - name: Detect OWASP JS Issues (js-xss)
+    # ---------- فحص OWASP JS اليدوي ----------
+    - name: 🔎 Detect OWASP JS Issues (js-xss)
       run: |
         npm install -g js-xss
         grep -r --include \*.js "innerHTML\|document.write\|eval\|Function(" . || true
 
     # ---------- إعداد Snyk ----------
-    - name: Set up Snyk CLI
+    - name: 🛠️ Set up Snyk CLI
       uses: snyk/actions/setup@master
       env:
         SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
-    - name: Snyk Code (static analysis)
-      run: DEBUG=* snyk code test --sarif > snyk-code.sarif || true
+    # ---------- فحص Snyk Code ----------
+    - name: 🧠 Snyk Code (static analysis)
+      run: snyk code test --sarif > snyk-code.sarif
       continue-on-error: true
 
-    - name: Upload Snyk Code SARIF
+    - name: 📤 Upload Snyk SARIF to GitHub Security Dashboard
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: snyk-code.sarif
 
-    # --- Snyk Open Source (تحليل التبعيات) ---
-    - name: Snyk Open Source - Root
-      run: DEBUG=* snyk test --all-projects --detection-depth=3 --print-deps || true
+    - name: 🗃️ Save Snyk SARIF as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: snyk-code-results
+        path: snyk-code.sarif
+
+    # ---------- فحص Snyk للتبعيات ----------
+    - name: 🧪 Snyk Open Source - Root
+      run: snyk test --all-projects --detection-depth=3 --print-deps
       continue-on-error: true
 
-    - name: Snyk Monitor - Root & Frontend
+    - name: 📈 Snyk Monitor - Root & Frontend
       run: |
-        DEBUG=* snyk monitor --all-projects --detection-depth=3 --print-deps || true
-        cd frontend && DEBUG=* snyk monitor --print-deps || true
+        snyk monitor --all-projects --detection-depth=3 --print-deps
+        cd frontend && snyk monitor --print-deps
       continue-on-error: true
 
-    # ---------- فحص الحاويات ----------
-    - name: Build Docker image
+    # ---------- فحص الحاوية ----------
+    - name: 🐳 Build Docker image
       run: docker build -t juice-shop-secured .
 
-    - name: Snyk Container Monitor
-      run: snyk container monitor juice-shop-secured --file=Dockerfile || true
+    - name: 🛡️ Snyk Container Monitor
+      run: snyk container monitor juice-shop-secured --file=Dockerfile
       continue-on-error: true
 
-    # ---------- فحص IaC (لو كان هناك terraform/k8s/yaml) ----------
-    - name: Snyk IaC test (optional)
-      run: snyk iac test || true
+    # ---------- فحص IaC ----------
+    - name: ⚙️ Snyk IaC test (optional)
+      run: snyk iac test
       continue-on-error: true
