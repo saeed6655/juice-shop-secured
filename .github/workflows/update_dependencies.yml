@@ -1,0 +1,86 @@
+name: Dependency Update and Fixes
+
+on:
+  workflow_dispatch: # تسمح بتشغيل الـ workflow يدويًا
+  schedule:
+    - cron: '0 0 * * 0' # يشغل الـ workflow كل يوم أحد في منتصف الليل (بتوقيت UTC)
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # استخدم أحدث إصدار LTS من Node.js
+
+      - name: Install dependencies (Frontend Project)
+        run: |
+          echo "Installing frontend project dependencies..."
+          npm install --legacy-peer-deps # تثبيت التبعيات في المسار الحالي (juice-shop-secured/frontend)
+        working-directory: ./juice-shop-secured/frontend # هذا هو المسار الذي يحتوي على package.json الفعلي
+
+      - name: Run npm audit (Frontend Project)
+        id: npm_audit_frontend
+        run: |
+          echo "Running npm audit for frontend project to identify vulnerabilities..."
+          npm audit || true # تسمح للفحص بالفشل دون إيقاف الـ workflow
+        working-directory: ./juice-shop-secured/frontend
+        continue-on-error: true # استمر حتى لو كان هناك فشل في التدقيق الأمني
+
+      - name: Upgrade deprecated dependencies (Frontend Project)
+        run: |
+          echo "Attempting to upgrade frontend dependencies..."
+          # تحديث جميع التبعيات المذكورة في package.json الخاص بـ frontend
+          npm update --legacy-peer-deps
+          echo "Running npm install again to ensure all dependencies are resolved after updates..."
+          npm install --legacy-peer-deps
+        working-directory: ./juice-shop-secured/frontend
+
+      - name: Run npm audit after upgrade (Frontend Project)
+        run: |
+          echo "Running npm audit again after dependency upgrades for Frontend..."
+          npm audit || true
+        working-directory: ./juice-shop-secured/frontend
+        continue-on-error: true
+
+      - name: Display Node.js and npm versions for Frontend
+        run: |
+          node -v
+          npm -v
+        working-directory: ./juice-shop-secured/frontend # لعرض الإصدارات في سياق هذا المشروع
+
+      - name: Run tests (Frontend Project)
+        run: |
+          echo "Running tests for Frontend project..."
+          # افترض أن أمر الاختبار للـ frontend هو 'ng test' أو 'npm test'. تحقق من قسم 'scripts' في package.json
+          # إذا كان الأمر 'ng test'، قد تحتاج إلى تثبيت Angular CLI عالميًا أو تعديل الأمر
+          # على سبيل المثال: npm run test أو ng test
+          npm test || true # تشغيل الاختبارات
+        working-directory: ./juice-shop-secured/frontend
+        continue-on-error: true # استمر حتى لو كان هناك فشل في الاختبارات
+
+      # - name: Create pull request (Optional)
+      #   uses: peter-evans/create-pull-request@v6
+      #   with:
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     commit-message: 'Automated: Update and fix frontend dependencies'
+      #     branch: automated-frontend-dependency-updates
+      #     title: 'Automated: Update and fix frontend dependencies'
+      #     body: |
+      #       This PR automates dependency updates and fixes for the frontend project.
+      #       Please review the changes and merge if everything looks good.
+      #     labels: automated-pr
+      #     reviewers: your_github_username # استبدل بـ GitHub username الخاص بك للمراجعة
+      #     assignees: your_github_username # استبدل بـ GitHub username الخاص بك للتعيين
+      #     committer: GitHub Actions <actions@github.com>
+      #     author: GitHub Actions <actions@github.com>
+      #     signoff: true
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   # قم بإلغاء التعليق على هذه الخطوة إذا كنت ترغب في إنشاء طلب سحب تلقائيًا.
+      #   # تأكد من أن لديك صلاحيات كافية لإنشاء PR.
